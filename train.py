@@ -1,36 +1,49 @@
+import pickle
 import random
 
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 
 env = gym.make("Taxi-v3")
 
+# define the hyperparameters for the Q-learning algorithm
 alpha = 0.9
 gamma = 0.95
-epsilon = 1.0  # al random
+epsilon = 1.0
 epsilon_decay = 0.9995
 min_epsilon = 0.01
 num_episodes = 10000
 max_steps = 100
 
+# initialize the Q-table with zeros
 q_table = np.zeros((env.observation_space.n, env.action_space.n))
 
-def choose_action(state):
-    # using the epsilon-greedy strategy
+
+def choose_action(state: int, epsilon: float) -> int:
+    """
+    Choose an action based on the epsilon-greedy strategy.
+    With probability epsilon, choose a random action; otherwise,
+    choose the action with the highest Q-value in the current q-table.
+    """
     if random.uniform(0, 1) < epsilon:
         return env.action_space.sample()
     else:
         return np.argmax(q_table[state, :])
 
 
-# --------------------- Training -----------------------
+# initialize total rewards
+total_episodes_rewards = []
+# start the training process
 for episode in range(num_episodes):
+    # reset the environment for a new episode
     state, _ = env.reset()
     done = False
+    current_episode_rewards = 0
 
     for step in range(max_steps):
         # select action
-        action = choose_action(state)
+        action = choose_action(state, epsilon)
         # apply action
         next_state, reward, done, truncated, _ = env.step(action)
         # update q table
@@ -41,35 +54,26 @@ for episode in range(num_episodes):
         )
         # update state after action is taken
         state = next_state
+        # update rewards
+        current_episode_rewards += reward
         # end the episode when the episode is finished
         if done or truncated:
             break
 
     # update exploration rate in the end of each episode
     epsilon = max(min_epsilon, epsilon * epsilon_decay)
+    # update the total rewards
+    total_episodes_rewards.append(current_episode_rewards)
 
-# --------------------- Testing -----------------------
-env = gym.make(id="Taxi-v3", render_mode="human")
-for episode in range(5):
-    # reset the environment for a new episode
-    state, _ = env.reset()
-    done = False
 
-    print(f"Current episode: {episode}")
+# store the updated q-table
+with open("q_table.pkl", "wb") as f:
+    pickle.dump(q_table, f)
 
-    for step in range(max_steps):
-        # Display the Taxi world
-        env.render()
-        # select the best action (according to the learned q-table)
-        action = np.argmax(q_table[state, :])
-        # apply action
-        next_state, reward, done, truncated, info = env.step(action)
-        # update state after action is taken
-        state = next_state
-        # end the episode when the episode is finished
-        if done or truncated:
-            print(f"FINISHED! Episode: {episode}, Reward: {reward}")
-            break
-
-# close the window in the end
-env.close()
+# visualize rewards over episodes
+plt.plot(total_episodes_rewards)
+plt.xlabel("Episode")
+plt.ylabel("Reward")
+plt.title("Q-learning Taxi-v3: Reward per episode")
+plt.grid(True)
+plt.show()
